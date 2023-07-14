@@ -2,6 +2,8 @@
 #include <TimeLib.h>
 #include <Wire.h>
 #include "SparkFun_Qwiic_Scale_NAU7802_Arduino_Library.h"  // Click here to get the library: http://librarymanager/All#SparkFun_NAU7802
+#include <SD.h>
+#include <SPI.h>
 
 
 NAU7802 myScale;  //Create instance of the NAU7802 class
@@ -30,6 +32,9 @@ int readings[numReadings];           // the readings from the analog input
 int readIndex = 0;                   // the index of the current reading
 int total = 0;                       // the running total
 int average = 0;                     // the average
+const int chipSelect = BUILTIN_SDCARD; 
+
+
 // Start LCD
 const int rs = 12, en = 11, d4 = 5, d5 = 4, d6 = 3, d7 = 2;
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
@@ -38,7 +43,7 @@ LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 const byte NUM_DELAYS = 3;                               // Number of delay timers used: 0 for Samples per second, 1 LCD update, 2 Blinking lED for logging
 unsigned long previousMillis[NUM_DELAYS] = { 0, 0, 0 };  // used for delay without delay functions
 unsigned long currentMillis[NUM_DELAYS] = { 0, 0, 0 };   // used for delay without delay functions
-unsigned int interval[NUM_DELAYS] = { 25, 550, 500 };        // 0 ForSamples Per Second, 1 for LCD update to Current, 2 for Blinking LED
+unsigned int interval[NUM_DELAYS] = { 12, 550, 500 };        // 0 ForSamples Per Second, 1 for LCD update to Current, 2 for Blinking LED
 
 
 /* setup load cell array
@@ -68,7 +73,6 @@ unsigned int interval[NUM_DELAYS] = { 25, 550, 500 };        // 0 ForSamples Per
 //};
 
 
-
 void setup() {
   Serial.begin(9600);
   lcd.begin(16, 2);
@@ -82,7 +86,7 @@ void setup() {
   Serial.println("Scale detected!");
   myScale.setSampleRate(NAU7802_SPS_80);  //Increase to max sample rate
   // myScale.setCalibrationFactor(long  unknown value);
-  // myScale.setZeroOffset(long  unknown value);
+  myScale.setZeroOffset(7850);
   myScale.calibrateAFE();  //Re-cal analog front end when we change gain, sample rate, or channel
 
   // set the Time library to use Teensy 3.0's RTC to keep time - Serial Terminal
@@ -97,10 +101,12 @@ void setup() {
   for (int thisReading = 0; thisReading < numReadings; thisReading++) {
     readings[thisReading] = 0;
   }
+
 }
 
 void loop() {
   update_buttons();
   logging();
   updateLCD();
+  readScale();
 }

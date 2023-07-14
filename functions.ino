@@ -19,24 +19,8 @@ void updateLCD() {
     writeHeader = false;
   }
   if (newdataLCD) {
-    // subtract the last reading:
-    total = total - readings[readIndex];
-    // read from the sensor:
-    readings[readIndex] = currentReading;
-    // add the reading to the total:
-    total = total + readings[readIndex];
-    // advance to the next position in the array:
-    readIndex = readIndex + 1;
-
-    // if we're at the end of the array...
-    if (readIndex >= numReadings) {
-      // ...wrap around to the beginning:
-      readIndex = 0;
-    }
-    // calculate the average:
-    average = total / numReadings;
-
-    if (previousMaxReading != maxReading) {
+    // only update the MAX reading while in logging state
+    if (previousMaxReading != maxReading && state == 1) {
       lcd.setCursor(9, 0);   // Coloumn, Row
       lcd.print("       ");  // erase previous value to get rid of any character that won't be over written
       lcd.setCursor(9, 0);   // Coloumn, Row
@@ -51,7 +35,7 @@ void updateLCD() {
       lcd.print(statusMessage);
       previousStatusMessage = statusMessage;
     }
-// only update the current after interval[1]
+    // only update the current after interval[1]
     currentMillis[1] = millis();
     if (currentMillis[1] - previousMillis[1] >= interval[1]) {
       // read scale
@@ -101,7 +85,16 @@ void logging() {
   if (state == 1) {
     update_filename();  // get a new filename based on time
     maxReading = 0;     // reset maxReading every time you enter this logging function
+    // open file on SD card
+    String dataString = "";
+    if (!SD.begin(chipSelect)) {
+      // did not find the SD card don't go into logging and alert to LCD
+      statusMessage = "SD not found";
+      state= 0;
+    }
 
+    File dataFile = SD.open(filename, FILE_WRITE);
+    dataFile.println("Milliseconds, Current");
     while (state == 1) {
       update_buttons();
       updateLCD();  // this function will update the LCD with current info
@@ -109,20 +102,19 @@ void logging() {
       if (currentMillis[0] - previousMillis[0] >= interval[0]) {
         // read scale
         previousMillis[0] = currentMillis[0];
-        if (myScale.available() == true) {
-          currentReading = myScale.getReading();
-          // TODO convert this unitless number to pounds
-          // TODO create an error message for when the scale is not connected
-
-          if (maxReading < currentReading) {
-            maxReading = currentReading;  // update max reading
-          }
-          newdataLCD = true;
+        readScale();
+        String dataString = String(millis()) + ", " + String(currentReading);
+        dataFile.println(dataString);
+        if (maxReading < currentReading) {
+          maxReading = currentReading;  // update max reading
         }
+        newdataLCD = true;
       }
     }
+    dataFile.close();
   }
 }
+
 
 void update_filename() {
   // This function grabs the current time creates a tile name that is unique with a csv extension.
@@ -164,4 +156,35 @@ unsigned long processSyncMessage() {
     }
   }
   return pctime;
+}
+
+void readScale() {
+  // This function will read the scale, and get a smoothed reading as well
+
+  if (myScale.available() == true) {
+    currentReading = myScale.getReading();
+    // TODO convert this unitless number to pounds
+    // TODO create an error message for when the scale is not connected
+
+    // } else {
+    // statusMessage = "scale not found";
+  }
+
+  // subtract the last reading:
+  total = total - readings[readIndex];
+  // read from the sensor:
+  readings[readIndex] = currentReading;
+  // add the reading to the total:
+  total = total + readings[readIndex];
+  // advance to the next position in the array:
+  readIndex = readIndex + 1;
+
+  // if we're at the end of the array...
+  if (readIndex >= numReadings) {
+    // ...wrap around to the beginning:
+    readIndex = 0;
+  }
+  // calculate the average:
+  average = total / numReadings;
+  newdataLCD = true;
 }
